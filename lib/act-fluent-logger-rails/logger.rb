@@ -3,7 +3,9 @@ require 'fluent-logger'
 
 module ActFluentLoggerRails
 
-  class Logger < ::ActiveSupport::TaggedLogging
+  class Logger < ActiveSupport::BufferedLogger
+    SEV_LABEL = %w(DEBUG INFO WARN ERROR FATAL ANY)
+
     def initialize
       config_file   = Rails.root.join("config", "fluent-logger.yml")
       fluent_config = YAML.load(ERB.new(config_file.read).result)[Rails.env]
@@ -14,37 +16,19 @@ module ActFluentLoggerRails
         messages_type: fluent_config['messages_type'],
       }
       @level = SEV_LABEL.index(Rails.application.config.log_level.to_s.upcase)
-      super(::ActFluentLoggerRails::FluentLogger.new(settings, @level))
+      @messages_type = (settings[:messages_type] || :array).to_sym
+      @tag = settings[:tag]
+      @fluent_logger = ::Fluent::Logger::FluentLogger.new(nil, host: settings[:host], port: settings[:port])
+      @severity = 0
+      @messages = []
     end
 
     def add(severity, message = nil, progname = nil, &block)
       return true if severity < @level
       message = (block_given? ? block.call : progname) if message.blank?
       return true if message.blank?
-      @logger.add_message(severity, message)
+      self.add_message(severity, message)
       true
-    end
-
-    def tagged(*tags)
-      super(*tags)
-    ensure
-      @logger.flush
-    end
-
-    # Severity label for logging. (max 5 char)
-    SEV_LABEL = %w(DEBUG INFO WARN ERROR FATAL ANY)
-  end
-
-  class FluentLogger < ActiveSupport::BufferedLogger
-    def initialize(options, level=DEBUG)
-      self.level = level
-      port    = options[:port]
-      host    = options[:host]
-      @messages_type = (options[:messages_type] || :array).to_sym
-      @tag = options[:tag]
-      @fluent_logger = ::Fluent::Logger::FluentLogger.new(nil, host: host, port: port)
-      @severity = 0
-      @messages = []
     end
 
     def add_message(severity, message)
