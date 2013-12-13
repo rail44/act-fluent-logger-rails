@@ -3,7 +3,7 @@ require 'fluent-logger'
 
 module ActFluentLoggerRails
 
-  class Logger < ::ActiveSupport::TaggedLogging
+  class Logger < ::ActiveSupport::BufferedLogger
     def initialize
       config_file   = Rails.root.join("config", "fluent-logger.yml")
       fluent_config = YAML.load(ERB.new(config_file.read).result)[Rails.env]
@@ -23,12 +23,6 @@ module ActFluentLoggerRails
       return true if message.blank?
       @logger.add_message(severity, message)
       true
-    end
-
-    def tagged(*tags)
-      super(*tags)
-    ensure
-      @logger.flush
     end
 
     # Severity label for logging. (max 5 char)
